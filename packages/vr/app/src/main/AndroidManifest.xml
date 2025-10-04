@@ -3,7 +3,6 @@
   xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:tools="http://schemas.android.com/tools"
 >
-  <!-- OpenXR を使うことを示す -->
   <uses-feature android:name="android.software.xr.api.openxr" android:required="true" />
   <uses-feature android:name="android.software.vr.mode" android:required="true" />
   <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" />
@@ -17,7 +16,8 @@
     android:supportsRtl="true"
     android:theme="@style/Theme.AppCompat.Light.NoActionBar"
   >
-    <profileable android:shell="true" tools:targetApi="33"/>
+    <profileable android:shell="true" tools:targetApi="33" />
+    <meta-data android:name="com.oculus.xr.openxr.runtime" android:value="com.oculus.ocms" />
     <activity
       android:name=".MainActivity"
       android:exported="true"
@@ -29,11 +29,6 @@
         <category android:name="android.intent.category.LAUNCHER" />
         <category android:name="com.oculus.intent.category.VR" />
       </intent-filter>
-      <!-- これは OpenXR アプリであることを OS に通知するプロパティ -->
-      <property
-        android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE"
-        android:value="XR_ACTIVITY_START_MODE_FULL_SPACE_UNMANAGED"
-      />
     </activity>
   </application>
 </manifest>
