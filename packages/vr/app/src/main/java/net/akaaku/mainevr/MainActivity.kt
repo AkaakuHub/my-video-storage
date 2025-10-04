@@ -1,9 +1,13 @@
+// このファイルは、あなたの現在のコードから不要な initializeOpenGLContext を削除し、
+// ライフサイクル呼び出しを整理したものです。
+// あなたの再試行ロジックは素晴らしいので、そのまま活用します。
+
 package net.akaaku.mainevr
 
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.Surface
-import android.widget.TextView
+import android.graphics.SurfaceTexture
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -13,36 +17,95 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private var player: ExoPlayer? = null
+    private var surfaceTexture: android.graphics.SurfaceTexture? = null
+    private var videoSurface: Surface? = null
+    private var isFrameAvailable = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
-        // Example of a call to a native method
         binding.sampleText.text = stringFromJNI()
+        nativeOnCreate()
+    }
 
-        // Initialize ExoPlayer
-        initializePlayer()
+    override fun onResume() {
+        super.onResume()
+        nativeOnResume()
+        if (player == null) {
+            initializePlayer()
+        }
+        player?.playWhenReady = true
+        binding.sampleText.text = "Starting VR session and video bridge..."
+        setupVideoTextureBridge()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        player?.playWhenReady = false
+        nativeOnPause()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        releasePlayer()
+        releaseVideoSurface()
+        nativeOnDestroy()
+    }
+
+    private fun setupVideoTextureBridge() {
+        initializeVideoBridgeWithRetry()
     }
 
     private fun initializePlayer() {
         val loadControl = DefaultLoadControl.Builder()
-           .setBufferDurationsMs(60000, 60000, 1500, 5000)
-           .build()
-
+       .setBufferDurationsMs(60000, 60000, 1500, 5000)
+       .build()
         player = ExoPlayer.Builder(this)
-           .setLoadControl(loadControl)
-           .build()
-
-        // サーバーのTailscale IPを指定
-        // いったんlocalで
-        val serverIp = "192.168.1.11"
-        val mediaItem = MediaItem.fromUri("http://$serverIp:3001/stream/my_video/playlist.m3u8")
+       .setLoadControl(loadControl)
+       .build()
+        val testVideoUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+        val mediaItem = MediaItem.fromUri(testVideoUrl)
         player?.setMediaItem(mediaItem)
         player?.prepare()
-        player?.playWhenReady = true
+        binding.sampleText.text = "Player initialized (waiting for video bridge)"
+        android.util.Log.d("MaineVR", "Player initialized successfully")
+    }
+
+    private fun initializeVideoBridgeWithRetry() {
+        val retryHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val retryRunnable = object : Runnable {
+            override fun run() {
+                val glTextureId = nativeGetTextureId()
+                if (glTextureId > 0) {
+                    binding.sampleText.text = "✅ Texture created after retry! ID: $glTextureId"
+                    android.util.Log.i("MaineVR", "Texture created after retry! ID: $glTextureId")
+                    completeVideoBridgeSetup(glTextureId)
+                } else {
+                    binding.sampleText.text = "Retrying texture creation... C++ side not ready"
+                    android.util.Log.d("MaineVR", "Texture creation failed (C++ not ready), retrying in 500ms")
+                    retryHandler.postDelayed(this, 500)
+                }
+            }
+        }
+        retryHandler.postDelayed(retryRunnable, 1000)
+    }
+
+    private fun completeVideoBridgeSetup(glTextureId: Int) {
+        try {
+            surfaceTexture = android.graphics.SurfaceTexture(glTextureId).apply {
+                setOnFrameAvailableListener {
+                    isFrameAvailable = true
+                }
+            }
+            videoSurface = Surface(surfaceTexture)
+            player?.setVideoSurface(videoSurface)
+            binding.sampleText.text = "✅ Video bridge working! Texture: $glTextureId"
+            android.util.Log.i("MaineVR", "Video bridge setup complete")
+        } catch (e: Exception) {
+            binding.sampleText.text = "❌ Bridge setup error: ${e.message}"
+            android.util.Log.e("MaineVR", "Bridge setup error", e)
+        }
     }
 
     private fun releasePlayer() {
@@ -50,35 +113,14 @@ class MainActivity : AppCompatActivity() {
         player = null
     }
 
-    override fun onStart() {
-        super.onStart()
-        if (player == null) {
-            initializePlayer()
-        }
+    private fun releaseVideoSurface() {
+        videoSurface?.release()
+        videoSurface = null
+        surfaceTexture?.release()
+        surfaceTexture = null
     }
 
-    override fun onResume() {
-        super.onResume()
-        player?.playWhenReady = true
-    }
-
-    override fun onPause() {
-        super.onPause()
-        player?.playWhenReady = false
-    }
-
-    override fun onStop() {
-        super.onStop()
-        releasePlayer()
-    }
-
-    /**
-     * A native method that is implemented by the 'mainevr' native library,
-     * which is packaged with this application.
-     */
     external fun stringFromJNI(): String
-
-    // JNI interface methods for OpenXR integration
     external fun nativeOnCreate()
     external fun nativeOnResume()
     external fun nativeOnPause()
@@ -87,7 +129,6 @@ class MainActivity : AppCompatActivity() {
     external fun nativeGetTextureId(): Int
 
     companion object {
-        // Used to load the 'mainevr' library on application startup.
         init {
             System.loadLibrary("mainevr")
         }

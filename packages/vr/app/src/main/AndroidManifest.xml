@@ -3,26 +3,33 @@
   xmlns:android="http://schemas.android.com/apk/res/android"
   xmlns:tools="http://schemas.android.com/tools"
 >
+  <!-- OpenXR を使うことを示す -->
   <uses-feature android:name="android.software.xr.api.openxr" android:required="true" />
+  <uses-feature android:name="android.software.vr.mode" android:required="true" />
+  <uses-feature android:name="android.hardware.vr.headtracking" android:required="true" />
+  <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="com.oculus.permission.USE_ANCHOR_API" />
   <application
     android:allowBackup="true"
-    android:dataExtractionRules="@xml/data_extraction_rules"
-    android:fullBackupContent="@xml/backup_rules"
     android:icon="@mipmap/ic_launcher"
     android:label="@string/app_name"
     android:roundIcon="@mipmap/ic_launcher_round"
     android:supportsRtl="true"
-    android:theme="@style/Theme.MaineVR"
+    android:theme="@style/Theme.AppCompat.Light.NoActionBar"
   >
-<!--    これあるとエラー-->
-<!--    <uses-native-library android:name="libopenxr_loader.so" android:required="true" />-->
-    <activity android:name=".MainActivity" android:exported="true">
+    <profileable android:shell="true" tools:targetApi="33"/>
+    <activity
+      android:name=".MainActivity"
+      android:exported="true"
+      android:theme="@style/Theme.AppCompat.Light.NoActionBar"
+      android:label="@string/app_name"
+    >
       <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
+        <category android:name="com.oculus.intent.category.VR" />
       </intent-filter>
-      <meta-data android:name="com.oculus.vr.focusaware" android:value="true" />
+      <!-- これは OpenXR アプリであることを OS に通知するプロパティ -->
       <property
         android:name="android.window.PROPERTY_XR_ACTIVITY_START_MODE"
         android:value="XR_ACTIVITY_START_MODE_FULL_SPACE_UNMANAGED"
